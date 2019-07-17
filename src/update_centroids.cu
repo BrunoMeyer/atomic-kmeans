@@ -1,7 +1,7 @@
 #include "update_centroids.h"
 
 __global__ void
-update_centroids_init(float* points, float* centroids, int* labels, int* count_labels, int K, int dim)
+update_centroids_init(DATATYPE* points, DATATYPE* centroids, int* labels, int* count_labels, int K, int dim)
 {
 	int i;
 	for(i = tidu; i < K*dim; i+=BLOCK_SIZE_UPDATE*N_BLOCKS_UPDATE){
@@ -10,7 +10,7 @@ update_centroids_init(float* points, float* centroids, int* labels, int* count_l
 }
 
 __global__ void
-update_centroids_divide(float* points, float* centroids, int* labels, int* count_labels, int K, int dim)
+update_centroids_divide(DATATYPE* points, DATATYPE* centroids, int* labels, int* count_labels, int K, int dim)
 {
 	int i;
 	for(i = tidu; i < K*dim; i+=BLOCK_SIZE_UPDATE*N_BLOCKS_UPDATE){
@@ -20,14 +20,14 @@ update_centroids_divide(float* points, float* centroids, int* labels, int* count
 }
 
 __global__ void
-update_centroids_sum(float* points, float* centroids, int* labels, int* count_labels, int K, int N, int dim)
+update_centroids_sum(DATATYPE* points, DATATYPE* centroids, int* labels, int* count_labels, int K, int N, int dim)
 {
 	int i,k;
 
 	
 	#ifdef PRIVATE_ATOMIC
 		//Inicializa os centroides locais de cada bloco
-		__shared__ float sm_centroids[MAX_DIM*MAX_K];
+		__shared__ DATATYPE sm_centroids[MAX_DIM*MAX_K];
 		for(i = tidx; i < dim*K; i+=BLOCK_SIZE_UPDATE){
 			sm_centroids[i] = 0;
 		}

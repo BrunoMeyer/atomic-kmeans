@@ -12,4 +12,3 @@ update_centroids.o: update_centroids.cu
 clean:
 	rm kmeans.o labelize.o update_centroids.o
 	rm kmeans.so
-	rm kmeans

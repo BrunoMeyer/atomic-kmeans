@@ -12,6 +12,7 @@
 // #include "clock.h"
 
 
+#define DATATYPE float
 
 // #define PRIVATE_ATOMIC 1
 
@@ -19,7 +20,7 @@
 #define UPDATE_ON_GPU 2
 
 #ifndef UPDATE_CENTROID
-	#define UPDATE_CENTROID UPDATE_ON_GPU
+	#define UPDATE_CENTROID UPDATE_ON_CPU
 #endif
 // #define UPDATE_CENTROID UPDATE_ON_GPU
 
@@ -45,10 +46,10 @@
 #define tidu (BLOCK_SIZE_UPDATE * blockIdx.x + threadIdx.x)
 #define tidx threadIdx.x
 
-#define MAX_K 512
-#define MAX_DIM 1000
+#define MAX_K 64
+#define MAX_DIM 100
 //Maximo de iteracoes
-#define MAX_ITE 100
+#define MAX_ITE 10000
 
 #ifndef DATASET
 	#define DATASET FAKE_DATASET

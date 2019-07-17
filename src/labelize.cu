@@ -1,7 +1,7 @@
 #include "labelize.h"
 
 __global__ void
-init_count_labels(float* points, float* centroids, int* labels, int* count_labels, int K)
+init_count_labels(DATATYPE* points, DATATYPE* centroids, int* labels, int* count_labels, int K)
 {
 	for(int i = tid; i < K; i+=BLOCK_SIZE*N_BLOCKS){
 		count_labels[i] = 0;
@@ -9,11 +9,11 @@ init_count_labels(float* points, float* centroids, int* labels, int* count_label
 }
 
 __global__ void
-create_labels(float* points, float* centroids, int* labels, int* count_labels, int K, int N, int dim)
+create_labels(DATATYPE* points, DATATYPE* centroids, int* labels, int* count_labels, int K, int N, int dim)
 {
 	
 	int i,j,k, smaller_label;
-	float smaller, aux, diff;
+	DATATYPE smaller, aux, diff;
 	
 	// Inicializa a contagem de elementos relacionados a cada centroide
 	// Ao final, cada bloco colocara esses valores na global memory

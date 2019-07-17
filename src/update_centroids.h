@@ -14,10 +14,10 @@
 
 #include "kmeans_config.h"
 
-__global__ void update_centroids_init(float* points, float* centroids, int* labels, int* count_labels, int K, int dim);
+__global__ void update_centroids_init(DATATYPE* points, DATATYPE* centroids, int* labels, int* count_labels, int K, int dim);
 
-__global__ void update_centroids_divide(float* points, float* centroids, int* labels, int* count_labels, int K, int dim);
+__global__ void update_centroids_divide(DATATYPE* points, DATATYPE* centroids, int* labels, int* count_labels, int K, int dim);
 
-__global__ void update_centroids_sum(float* points, float* centroids, int* labels, int* count_labels, int K, int N, int dim);
+__global__ void update_centroids_sum(DATATYPE* points, DATATYPE* centroids, int* labels, int* count_labels, int K, int N, int dim);
 
 #endif

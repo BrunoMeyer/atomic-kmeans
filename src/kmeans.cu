@@ -23,7 +23,7 @@ using namespace std;
 
 
 #if DATASET == REAL_DATASET
-int load_data_from_csv(float* points){
+int load_data_from_csv(DATATYPE* points){
 	
 	int i,j;
 	i = 0;
@@ -41,14 +41,14 @@ int load_data_from_csv(float* points){
 	return err;
 }
 #elif DATASET == FAKE_DATASET
-	void initialize_fake_data(float* points){
+	void initialize_fake_data(DATATYPE* points){
 		srand(RANDOM_SEED);
 		int i,j;
 		for(i = 0; i < N_POINTS; ++i){
 			
 			for(j = 0; j < DIMENSION; ++j){
 				int aux = (i/(ELEMENTS_PER_CLUSTER));
-				float r = rand() % DISTANCE_INTRA_CLUSTER;
+				DATATYPE r = rand() % DISTANCE_INTRA_CLUSTER;
 				points[i*DIMENSION+j] = aux*DISTANCE_EXTRA_CLUSTER + r-DISTANCE_INTRA_CLUSTER/2;
 			}
 		}
@@ -56,7 +56,7 @@ int load_data_from_csv(float* points){
 #endif
 
 
-void log_centroids(float* centroids, int K, int dim){
+void log_centroids(DATATYPE* centroids, int K, int dim){
 	int k,j;
 	for(k = 0; k < K; ++k){
 		printf("Centroide %d:\n", k);
@@ -67,7 +67,7 @@ void log_centroids(float* centroids, int K, int dim){
 		printf("\n");
 	}
 }
-void log(float* points, int* labels, int N, int dim){
+void log(DATATYPE* points, int* labels, int N, int dim){
 	int i,j;
 
 	// printf("----------\n");
@@ -96,9 +96,9 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
    }
 }
 
-int* kmeans(int K, float* points, int N, int dim)
+int* kmeans(int K, DATATYPE* points, int N, int dim, int max_iter)
 {
-	float* centroids = (float*) malloc(sizeof(float)*K*dim);
+	DATATYPE* centroids = (DATATYPE*) malloc(sizeof(DATATYPE)*K*dim);
 	int* labels = (int*)malloc(sizeof(int)*N);
 	int* count_labels = (int*)malloc(sizeof(int)*K);
 	
@@ -110,28 +110,28 @@ int* kmeans(int K, float* points, int N, int dim)
 		for(j = 0; j < dim; ++j){
 			// centroids[k*DIMENSION+j] = points[(N_POINTS/(k+1))-1+j];
 			centroids[k*dim+j] = points[(k*N/K)*dim + j];
-			fprintf(stderr,"%lf\t",centroids[k*dim+j]);
+			// fprintf(stderr,"%lf\t",centroids[k*dim+j]);
 		}
-		fprintf(stderr,"\n");
+		// fprintf(stderr,"\n");
 	}
 
 	// log_centroids(centroids, K, dim);
 
-	float* d_points;
-	float* d_centroids;
+	DATATYPE* d_points;
+	DATATYPE* d_centroids;
 	int* d_labels;
 	int* d_count_labels;
 	
-	gpuErrchk(cudaMalloc((void **)&d_points, N*dim*sizeof(float)));
-	gpuErrchk(cudaMalloc((void **)&d_centroids, K*dim*sizeof(float)));
+	gpuErrchk(cudaMalloc((void **)&d_points, N*dim*sizeof(DATATYPE)));
+	gpuErrchk(cudaMalloc((void **)&d_centroids, K*dim*sizeof(DATATYPE)));
 	gpuErrchk(cudaMalloc((void **)&d_labels, N*sizeof(int)));
 	gpuErrchk(cudaMalloc((void **)&d_count_labels, K*sizeof(int)));
 
-	cudaMemcpy(d_points, points, N*dim*sizeof(float), cudaMemcpyHostToDevice);
-	cudaMemcpy(d_centroids, centroids, sizeof(float)*K*dim, cudaMemcpyHostToDevice);
-	// cudaMemcpy(d_centroids, centroids, K*DIMENSION*sizeof(float));
-	// cudaMemcpy(d_labels, labels, N_POINTS*DIMENSION*sizeof(float), cudaMemcpyHostToDevice);
-	// cudaMemcpy(d_count_labels, points, N_POINTS*DIMENSION*sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpy(d_points, points, N*dim*sizeof(DATATYPE), cudaMemcpyHostToDevice);
+	cudaMemcpy(d_centroids, centroids, sizeof(DATATYPE)*K*dim, cudaMemcpyHostToDevice);
+	// cudaMemcpy(d_centroids, centroids, K*DIMENSION*sizeof(DATATYPE));
+	// cudaMemcpy(d_labels, labels, N_POINTS*DIMENSION*sizeof(DATATYPE), cudaMemcpyHostToDevice);
+	// cudaMemcpy(d_count_labels, points, N_POINTS*DIMENSION*sizeof(DATATYPE), cudaMemcpyHostToDevice);
 
 
 	int threadsPerBlock = BLOCK_SIZE;
@@ -147,7 +147,7 @@ int* kmeans(int K, float* points, int N, int dim)
 	long long unsigned min_update = 0;
 	int first = 1;
 	
-	for(int ite = 0; ite < MAX_ITE; ++ite){
+	for(int ite = 0; ite < max_iter; ++ite){
 		chrono_reset(chr_total);  
     	chrono_start(chr_total);
 
@@ -234,7 +234,7 @@ int* kmeans(int K, float* points, int N, int dim)
 				}
 			}
 
-			cudaMemcpy(d_centroids, centroids, sizeof(float)*K*dim, cudaMemcpyHostToDevice);
+			cudaMemcpy(d_centroids, centroids, sizeof(DATATYPE)*K*dim, cudaMemcpyHostToDevice);
 		#endif
 		chrono_stop(chr_update);
 		if(first || chr_update->xtotal_ns < min_update){
@@ -253,8 +253,8 @@ int* kmeans(int K, float* points, int N, int dim)
 	printf("Labeling on GPU takes %llu n seconds\n",min_label);
 	printf("Updating centroids on GPU takes %llu n seconds\n",min_update);
 	printf("Total KMEANS on GPU takes %llu n seconds\n",min_total);
-	cudaMemcpy(points, d_points, N*dim*sizeof(float),cudaMemcpyDeviceToHost);
-	cudaMemcpy(centroids, d_centroids, sizeof(float)*K*dim,cudaMemcpyDeviceToHost);
+	cudaMemcpy(points, d_points, N*dim*sizeof(DATATYPE),cudaMemcpyDeviceToHost);
+	cudaMemcpy(centroids, d_centroids, sizeof(DATATYPE)*K*dim,cudaMemcpyDeviceToHost);
 	cudaMemcpy(labels, d_labels, N*sizeof(int),cudaMemcpyDeviceToHost);
 	cudaDeviceSynchronize();
 	
@@ -288,7 +288,7 @@ int* double_matrix(int* input, int w, int h){
 
 // int main(int argc, char *argv[]){
 // 	int K = atoi(argv[1]);
-// 	float* points = (float*)malloc(sizeof(float)*N_POINTS*DIMENSION);
+// 	DATATYPE* points = (DATATYPE*)malloc(sizeof(DATATYPE)*N_POINTS*DIMENSION);
 
 // 	#if DATASET == REAL_DATASET
 // 		load_data_from_csv(points);
