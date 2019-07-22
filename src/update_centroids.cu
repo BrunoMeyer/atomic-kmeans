@@ -22,10 +22,12 @@ update_centroids_divide(DATATYPE* points, DATATYPE* centroids, int* labels, int*
 __global__ void
 update_centroids_sum(DATATYPE* points, DATATYPE* centroids, int* labels, int* count_labels, int K, int N, int dim)
 {
+	#if UPDATE_CENTROID == UPDATE_ON_GPU
+
 	int i,k;
 
 	
-	#ifdef PRIVATE_ATOMIC
+	#ifdef PRIVATE_ATOMIC_UPDATE
 		//Inicializa os centroides locais de cada bloco
 		__shared__ DATATYPE sm_centroids[MAX_DIM*MAX_K];
 		for(i = tidx; i < dim*K; i+=BLOCK_SIZE_UPDATE){
@@ -39,7 +41,7 @@ update_centroids_sum(DATATYPE* points, DATATYPE* centroids, int* labels, int* co
 		
 		for(k = 0; k < K; ++k){
 			if(labels[i/dim] == k){
-				#ifdef PRIVATE_ATOMIC
+				#ifdef PRIVATE_ATOMIC_UPDATE
 					atomicAdd(&sm_centroids[k*dim+(i%dim)], points[i]);
 				#else
 					atomicAdd(&centroids[k*dim+(i%dim)], points[i]);
@@ -49,7 +51,7 @@ update_centroids_sum(DATATYPE* points, DATATYPE* centroids, int* labels, int* co
 		}
 	}
 
-	#ifdef PRIVATE_ATOMIC
+	#ifdef PRIVATE_ATOMIC_UPDATE
 		//Cada bloco coloca o valor parcial nos centroides da memoria global
 		//Apos esse kernel, havera outra funcao para dividir os valores dos elementos
 		__syncthreads();
@@ -58,4 +60,5 @@ update_centroids_sum(DATATYPE* points, DATATYPE* centroids, int* labels, int* co
 		}
 	#endif
 
+	#endif
 }

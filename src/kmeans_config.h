@@ -14,13 +14,14 @@
 
 #define DATATYPE float
 
-// #define PRIVATE_ATOMIC 1
+#define PRIVATE_ATOMIC_LABEL 1
+#define PRIVATE_ATOMIC_UPDATE 1
 
 #define UPDATE_ON_CPU 1
 #define UPDATE_ON_GPU 2
 
 #ifndef UPDATE_CENTROID
-	#define UPDATE_CENTROID UPDATE_ON_CPU
+	#define UPDATE_CENTROID UPDATE_ON_GPU
 #endif
 // #define UPDATE_CENTROID UPDATE_ON_GPU
 
@@ -31,7 +32,7 @@
 
 //Blocos utilizados na rotulacao
 #ifndef N_BLOCKS
-	#define N_BLOCKS 1
+	#define N_BLOCKS 5
 #endif
 #define BLOCK_SIZE 1024
 
@@ -46,8 +47,8 @@
 #define tidu (BLOCK_SIZE_UPDATE * blockIdx.x + threadIdx.x)
 #define tidx threadIdx.x
 
-#define MAX_K 64
-#define MAX_DIM 100
+#define MAX_K 10
+#define MAX_DIM 800
 //Maximo de iteracoes
 #define MAX_ITE 10000
 

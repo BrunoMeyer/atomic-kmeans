@@ -96,13 +96,17 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
    }
 }
 
-int* kmeans(int K, DATATYPE* points, int N, int dim, int max_iter)
+int* kmeans(int K, DATATYPE* points, int N, int dim, int max_iter, int verbose)
 {
+	chronometer_t* chr_global = (chronometer_t*)malloc(sizeof(chronometer_t));
+	chrono_reset(chr_global);
+	chrono_start(chr_global);
+
 	DATATYPE* centroids = (DATATYPE*) malloc(sizeof(DATATYPE)*K*dim);
 	int* labels = (int*)malloc(sizeof(int)*N);
 	int* count_labels = (int*)malloc(sizeof(int)*K);
 	
-	int j,k;
+	int i,j,k;
 	
 	// log(points, labels, N, dim);
 	
@@ -127,36 +131,66 @@ int* kmeans(int K, DATATYPE* points, int N, int dim, int max_iter)
 	gpuErrchk(cudaMalloc((void **)&d_labels, N*sizeof(int)));
 	gpuErrchk(cudaMalloc((void **)&d_count_labels, K*sizeof(int)));
 
+	chronometer_t* chr_transfer = (chronometer_t*)malloc(sizeof(chronometer_t));
+	chrono_reset(chr_transfer);
+
+	chrono_start(chr_transfer);
 	cudaMemcpy(d_points, points, N*dim*sizeof(DATATYPE), cudaMemcpyHostToDevice);
 	cudaMemcpy(d_centroids, centroids, sizeof(DATATYPE)*K*dim, cudaMemcpyHostToDevice);
 	// cudaMemcpy(d_centroids, centroids, K*DIMENSION*sizeof(DATATYPE));
 	// cudaMemcpy(d_labels, labels, N_POINTS*DIMENSION*sizeof(DATATYPE), cudaMemcpyHostToDevice);
 	// cudaMemcpy(d_count_labels, points, N_POINTS*DIMENSION*sizeof(DATATYPE), cudaMemcpyHostToDevice);
+	chrono_stop(chr_transfer);
 
 
 	int threadsPerBlock = BLOCK_SIZE;
 	
 	int blocksPerGrid = N_BLOCKS;//(N_POINTS + threadsPerBlock - 1) / threadsPerBlock;
 
+	
+	chronometer_t* chr_loop = (chronometer_t*)malloc(sizeof(chronometer_t));
 	chronometer_t* chr_total = (chronometer_t*)malloc(sizeof(chronometer_t));
 	chronometer_t* chr_label = (chronometer_t*)malloc(sizeof(chronometer_t));
 	chronometer_t* chr_update = (chronometer_t*)malloc(sizeof(chronometer_t));
-  
+	
+	chrono_reset(chr_loop);
+	chrono_reset(chr_total);
+	chrono_reset(chr_label);
+	chrono_reset(chr_update);
+
 	long long unsigned min_total = 0;
 	long long unsigned min_label = 0;
 	long long unsigned min_update = 0;
 	int first = 1;
 	
+	
+	
+	chrono_reset(chr_loop);  
+	chrono_start(chr_loop);
+
+
 	for(int ite = 0; ite < max_iter; ++ite){
-		chrono_reset(chr_total);  
+		if(verbose>=1){
+			printf("\rIterations of KMeans: |");
+			for(i=0; i< 1+(int)( ((float)(ite)/max_iter) *80); ++i){
+				printf("#");
+			}
+			for(i=i; i<80;++i){
+				printf(".");
+			}
+			printf("| %d %%",1+(int)(100*((float)(ite)/max_iter)));
+			fflush(stdout);
+		}
+
+		// chrono_reset(chr_total); 
     	chrono_start(chr_total);
 
 
 		// Rotulacao
 		////////////////////////////////////////////////////////////////////////
-		chrono_reset(chr_label);  
+		// chrono_reset(chr_label);
     	chrono_start(chr_label);
-		cudaDeviceSynchronize();
+		// cudaDeviceSynchronize();
 		// Inicializa em um kernel diferente
 		// Eh necessario pois nao eh trivial sincronizar os blocos
 		init_count_labels<<<blocksPerGrid, threadsPerBlock>>>(
@@ -173,30 +207,31 @@ int* kmeans(int K, DATATYPE* points, int N, int dim, int max_iter)
 			min_label = chr_label->xtotal_ns;
 		}
 		////////////////////////////////////////////////////////////////////////
-		chrono_reset(chr_update);
+
+
+
+		// chrono_reset(chr_update);
 		chrono_start(chr_update);
-
-
-
-
 		// Atualiza em CPU ou GPU
 		#if UPDATE_CENTROID == UPDATE_ON_GPU
 			update_centroids_init<<<N_BLOCKS_UPDATE,BLOCK_SIZE_UPDATE>>>(
 				d_points, d_centroids, d_labels, d_count_labels, K, dim
 			);
-			cudaDeviceSynchronize();
+			// cudaDeviceSynchronize();
 			update_centroids_sum<<<N_BLOCKS_UPDATE,BLOCK_SIZE_UPDATE>>>(
 				d_points, d_centroids, d_labels, d_count_labels, K, N, dim
 			);
-			cudaDeviceSynchronize();
+			// cudaDeviceSynchronize();
 			// printf("\n\n");
 			update_centroids_divide<<<N_BLOCKS_UPDATE,BLOCK_SIZE_UPDATE>>>(
 				d_points, d_centroids, d_labels, d_count_labels, K, dim
 			);
 			cudaDeviceSynchronize();
 		#elif UPDATE_CENTROID == UPDATE_ON_CPU
+			chrono_start(chr_transfer);
 			cudaMemcpy(labels, d_labels, N*sizeof(int),cudaMemcpyDeviceToHost);
 			cudaMemcpy(count_labels, d_count_labels, K*sizeof(int),cudaMemcpyDeviceToHost);
+			chrono_stop(chr_transfer);
 			
 			// puts("##");
 			// for(j=0; j < K;++j){
@@ -208,7 +243,7 @@ int* kmeans(int K, DATATYPE* points, int N, int dim, int max_iter)
 			// }
 			// puts("##");
 
-			cudaDeviceSynchronize();
+			// cudaDeviceSynchronize();
 
 
 			for(k = 0; k < K; ++k){
@@ -217,7 +252,7 @@ int* kmeans(int K, DATATYPE* points, int N, int dim, int max_iter)
 				}
 			}
 	
-			for(int i = 0; i < N; ++i){
+			for(i = 0; i < N; ++i){
 				
 				for(k = 0; k < K; ++k){
 					if(labels[i] == k){
@@ -234,7 +269,9 @@ int* kmeans(int K, DATATYPE* points, int N, int dim, int max_iter)
 				}
 			}
 
+			chrono_start(chr_transfer);
 			cudaMemcpy(d_centroids, centroids, sizeof(DATATYPE)*K*dim, cudaMemcpyHostToDevice);
+			chrono_stop(chr_transfer);
 		#endif
 		chrono_stop(chr_update);
 		if(first || chr_update->xtotal_ns < min_update){
@@ -250,16 +287,40 @@ int* kmeans(int K, DATATYPE* points, int N, int dim, int max_iter)
 		
 		// log_centroids(centroids, K, dim);
 	}
-	printf("Labeling on GPU takes %llu n seconds\n",min_label);
-	printf("Updating centroids on GPU takes %llu n seconds\n",min_update);
-	printf("Total KMEANS on GPU takes %llu n seconds\n",min_total);
-	cudaMemcpy(points, d_points, N*dim*sizeof(DATATYPE),cudaMemcpyDeviceToHost);
-	cudaMemcpy(centroids, d_centroids, sizeof(DATATYPE)*K*dim,cudaMemcpyDeviceToHost);
+	chrono_stop(chr_loop);
+	
+	if(verbose>=1){
+		printf("\rIterations of KMeans: |");
+		for(i=0; i< 80; ++i){
+			printf("#");
+		}
+		printf("| 100 %%\n");
+		fflush(stdout);
+	}
+	
+
+	if(verbose>=2){
+		// printf("Labeling on GPU takes %lf seconds\n",min_label/(float)10e8);
+		// printf("Updating centroids on GPU takes %lf seconds\n",min_update/(float)10e8);
+		// printf("Total KMEANS on GPU takes %lf seconds\n",min_total/(float)10e8);
+		// printf("All iterations KMEANS on GPU takes %lf seconds\n",chr_loop->xtotal_ns/(float)10e8);
+		
+		printf("Labeling on GPU takes %lf seconds\n",chr_label->xtotal_ns/(float)10e8);
+		printf("Updating centroids on GPU takes %lf seconds\n",chr_update->xtotal_ns/(float)10e8);
+		printf("Total KMEANS on GPU takes %lf seconds\n",chr_total->xtotal_ns/(float)10e8);
+		printf("All iterations KMEANS on GPU takes %lf seconds\n",chr_loop->xtotal_ns/(float)10e8);
+	}
+	
+	chrono_start(chr_transfer);
+	// cudaMemcpy(points, d_points, N*dim*sizeof(DATATYPE),cudaMemcpyDeviceToHost);
+	// cudaMemcpy(centroids, d_centroids, sizeof(DATATYPE)*K*dim,cudaMemcpyDeviceToHost);
 	cudaMemcpy(labels, d_labels, N*sizeof(int),cudaMemcpyDeviceToHost);
+	chrono_stop(chr_transfer);
 	cudaDeviceSynchronize();
+	printf("Transfer CPU<->GPU KMEANS takes %lf seconds\n",chr_transfer->xtotal_ns/(float)10e8);
 	
 	// log(points,labels);
-	// log_centroids(centroids, K);
+	// log_centroids(centroids, K, dim);
 	
 	cudaDeviceSynchronize();
 	cudaFree(d_centroids);
@@ -271,6 +332,10 @@ int* kmeans(int K, DATATYPE* points, int N, int dim, int max_iter)
 	// free(count_labels);
 	// free(labels);
 
+	chrono_stop(chr_global);
+	if(verbose>=2){
+		printf("Global KMEANS takes %lf seconds\n",chr_global->xtotal_ns/(float)10e8);
+	}
 	return labels;
 }
 

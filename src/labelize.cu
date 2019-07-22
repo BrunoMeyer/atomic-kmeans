@@ -17,7 +17,7 @@ create_labels(DATATYPE* points, DATATYPE* centroids, int* labels, int* count_lab
 	
 	// Inicializa a contagem de elementos relacionados a cada centroide
 	// Ao final, cada bloco colocara esses valores na global memory
-	#ifdef PRIVATE_ATOMIC
+	#ifdef PRIVATE_ATOMIC_LABEL
 		__shared__ int smem_count_labels[MAX_K];
 		for(i = tidx; i < K; i+=BLOCK_SIZE){
 			smem_count_labels[tidx] = 0;
@@ -56,14 +56,14 @@ create_labels(DATATYPE* points, DATATYPE* centroids, int* labels, int* count_lab
 		// Acesso a global memory (sabemos que nao havera concorrencia de acesso)
 		// O acesso parece estar coalest
 		labels[i] = smaller_label;
-		#ifdef PRIVATE_ATOMIC
+		#ifdef PRIVATE_ATOMIC_LABEL
 			atomicAdd(&smem_count_labels[smaller_label], 1);
 		#else
 			atomicAdd(&count_labels[smaller_label], 1);
 		#endif
 	}
 
-	#ifdef PRIVATE_ATOMIC
+	#ifdef PRIVATE_ATOMIC_LABEL
 		__syncthreads();
 		for(i = tidx; i < K; i+=BLOCK_SIZE){
 			atomicAdd(&count_labels[tidx], smem_count_labels[tidx]);
